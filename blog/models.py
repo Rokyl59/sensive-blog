@@ -1,6 +1,25 @@
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth.models import User
+from django.db.models import Count
+
+
+class TagQuerySet(models.QuerySet):
+    def popular(self):
+        return self.annotate(posts_count=Count('posts')).order_by('-posts_count')
+
+
+class TagManager(models.Manager):
+    def get_queryset(self):
+        return TagQuerySet(self.model, using=self._db)
+
+    def popular(self):
+        return self.get_queryset().popular()
+
+
+class PostManager(models.Manager):
+    def year(self, year):
+        return self.get_queryset().filter(published_at__year=year)
 
 
 class Post(models.Model):
@@ -25,6 +44,8 @@ class Post(models.Model):
         related_name='posts',
         verbose_name='Теги')
 
+    objects = PostManager()
+
     def __str__(self):
         return self.title
 
@@ -39,6 +60,8 @@ class Post(models.Model):
 
 class Tag(models.Model):
     title = models.CharField('Тег', max_length=20, unique=True)
+
+    objects = TagManager()
 
     def __str__(self):
         return self.title
