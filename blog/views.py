@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from blog.models import Comment, Post, Tag
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 
 
 def get_related_posts_count(tag):
@@ -33,13 +33,20 @@ def get_likes_count(post):
 
 
 def index(request):
+    comments_prefetch = Prefetch('comment_set', queryset=Comment.objects.all())
+    tags_prefetch = Prefetch('tags', queryset=Tag.objects.all())
     most_popular_posts = (
-        Post.objects.annotate(likes_count=Count('likes')).
-        order_by('-likes_count').select_related('author')[:5]
+        Post.objects.annotate(
+            likes_count=Count('likes')
+        ).select_related('author').
+        prefetch_related(comments_prefetch, tags_prefetch).
+        order_by('-likes_count')[:5]
     )
+
     fresh_posts = (
         Post.objects.order_by('-published_at').
-        select_related('author')
+        select_related('author').
+        prefetch_related(comments_prefetch, tags_prefetch)
     )
     most_fresh_posts = fresh_posts[:5]
 
@@ -51,12 +58,28 @@ def index(request):
 
     context = {
         'most_popular_posts': [
-            serialize_post(post) for post in most_popular_posts
-        ],
-        'page_posts': [serialize_post(post) for post in most_fresh_posts],
+            serialize_post_optimized(post) for post in most_popular_posts
+            ],
+        'page_posts': [
+            serialize_post_optimized(post) for post in most_fresh_posts
+            ],
         'popular_tags': [serialize_tag(tag) for tag in most_popular_tags],
     }
     return render(request, 'index.html', context)
+
+
+def serialize_post_optimized(post):
+    return {
+        'title': post.title,
+        'teaser_text': post.text[:200],
+        'author': post.author.username,
+        'comments_amount': len(post.comment_set.all()),
+        'image_url': post.image.url if post.image else None,
+        'published_at': post.published_at,
+        'slug': post.slug,
+        'tags': [serialize_tag(tag) for tag in post.tags.all()],
+        'first_tag_title': post.tags.all()[0].title if post.tags.all().exists() else None,
+    }
 
 
 def post_detail(request, slug):
