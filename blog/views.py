@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from blog.models import Comment, Post, Tag
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
 
 
 def get_related_posts_count(tag):
@@ -35,11 +35,11 @@ def get_likes_count(post):
 def index(request):
     comments_prefetch = Prefetch('comment_set', queryset=Comment.objects.all())
     tags_prefetch = Prefetch('tags', queryset=Tag.objects.all())
-    most_popular_posts = (
-        Post.objects.popular().
-        prefetch_related('author')[:5].
-        fetch_with_comments_count()
-    )
+    most_popular_posts = Post.objects.annotate(
+        likes_count=Count('likes')
+    ).select_related('author').prefetch_related(
+        Prefetch('tags', queryset=Tag.objects.all())
+    ).order_by('-likes_count')[:5]
 
     fresh_posts = (
         Post.objects.order_by('-published_at').
