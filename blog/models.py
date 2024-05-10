@@ -6,7 +6,9 @@ from django.db.models import Count
 
 class TagQuerySet(models.QuerySet):
     def popular(self):
-        return self.annotate(posts_count=Count('posts')).order_by('-posts_count')
+        return self.annotate(
+            posts_count=Count('posts')
+        ).order_by('-posts_count')
 
 
 class TagManager(models.Manager):
@@ -18,16 +20,15 @@ class TagManager(models.Manager):
 
 
 class PostQuerySet(models.QuerySet):
-    def fetch_with_comments_count(self):
-        return self.annotate(comments_count=Count('comment'))
+    def popular(self):
+        return self.annotate(
+            likes_count=Count('likes')
+        ).order_by('-likes_count')
 
 
 class PostManager(models.Manager):
     def get_queryset(self):
         return PostQuerySet(self.model, using=self._db)
-
-    def popular(self):
-        return self.get_queryset().annotate(likes_count=Count('likes')).order_by('-likes_count')
 
 
 class Post(models.Model):
@@ -90,6 +91,7 @@ class Comment(models.Model):
     post = models.ForeignKey(
         'Post',
         on_delete=models.CASCADE,
+        related_name='comments',
         verbose_name='Пост, к которому написан')
     author = models.ForeignKey(
         User,
