@@ -17,9 +17,17 @@ class TagManager(models.Manager):
         return self.get_queryset().popular()
 
 
+class PostQuerySet(models.QuerySet):
+    def fetch_with_comments_count(self):
+        return self.annotate(comments_count=Count('comment'))
+
+
 class PostManager(models.Manager):
-    def year(self, year):
-        return self.get_queryset().filter(published_at__year=year)
+    def get_queryset(self):
+        return PostQuerySet(self.model, using=self._db)
+
+    def popular(self):
+        return self.get_queryset().annotate(likes_count=Count('likes')).order_by('-likes_count')
 
 
 class Post(models.Model):
