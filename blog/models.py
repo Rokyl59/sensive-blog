@@ -4,11 +4,24 @@ from django.contrib.auth.models import User
 from django.db.models import Count
 
 
+class CommentQuerySet(models.QuerySet):
+    def with_post_info(self):
+        return self.select_related('post', 'author')
+
+
+class CommentManager(models.Manager):
+    def get_queryset(self):
+        return CommentQuerySet(self.model, using=self._db)
+
+
 class TagQuerySet(models.QuerySet):
     def popular(self):
         return self.annotate(
             posts_count=Count('posts')
         ).order_by('-posts_count')
+
+    def with_posts_count(self):
+        return self.annotate(posts_count=Count('posts'))
 
 
 class TagManager(models.Manager):
@@ -17,6 +30,9 @@ class TagManager(models.Manager):
 
     def popular(self):
         return self.get_queryset().popular()
+
+    def with_posts_count(self):
+        return self.get_queryset().with_posts_count()
 
 
 class PostQuerySet(models.QuerySet):
@@ -100,6 +116,8 @@ class Comment(models.Model):
 
     text = models.TextField('Текст комментария')
     published_at = models.DateTimeField('Дата и время публикации')
+
+    objects = CommentManager()
 
     def __str__(self):
         return f'{self.author.username} under {self.post.title}'
