@@ -1,3 +1,4 @@
+# models.py
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth.models import User
@@ -16,9 +17,8 @@ class CommentManager(models.Manager):
 
 class TagQuerySet(models.QuerySet):
     def popular(self):
-        return self.annotate(
-            posts_count=Count('posts')
-        ).order_by('-posts_count')
+        return self.annotate(posts_count=Count('posts')
+                             ).order_by('-posts_count')
 
     def with_posts_count(self):
         return self.annotate(posts_count=Count('posts'))
@@ -37,14 +37,28 @@ class TagManager(models.Manager):
 
 class PostQuerySet(models.QuerySet):
     def popular(self):
-        return self.annotate(
+        return self.annotate(likes_count=Count('likes')
+                             ).order_by('-likes_count')
+
+    def with_related_data(self):
+        return self.select_related('author').prefetch_related(
+            Prefetch('tags', queryset=Tag.objects.with_posts_count()),
+            Prefetch('comments', queryset=Comment.objects.all())
+        ).annotate(
+            comments_count=Count('comments'),
             likes_count=Count('likes')
-        ).order_by('-likes_count')
+        )
 
 
 class PostManager(models.Manager):
     def get_queryset(self):
         return PostQuerySet(self.model, using=self._db)
+
+    def popular(self):
+        return self.get_queryset().popular()
+
+    def with_related_data(self):
+        return self.get_queryset().with_related_data()
 
 
 class Post(models.Model):
@@ -53,10 +67,8 @@ class Post(models.Model):
     slug = models.SlugField('Название в виде url', max_length=200)
     image = models.ImageField('Картинка')
     published_at = models.DateTimeField('Дата и время публикации')
-
     author = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
+        User, on_delete=models.CASCADE,
         verbose_name='Автор',
         limit_choices_to={'is_staff': True})
     likes = models.ManyToManyField(
@@ -113,7 +125,6 @@ class Comment(models.Model):
         User,
         on_delete=models.CASCADE,
         verbose_name='Автор')
-
     text = models.TextField('Текст комментария')
     published_at = models.DateTimeField('Дата и время публикации')
 

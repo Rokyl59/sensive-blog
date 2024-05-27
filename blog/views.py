@@ -1,41 +1,22 @@
 # blog/views.py
 from django.shortcuts import render, get_object_or_404
 from blog.models import Comment, Post, Tag
-from django.db.models import Prefetch, Count
+from django.db.models import Count
 from blog.serializers import serialize_post, serialize_tag
 
 
 def index(request):
-    tags_prefetch = Prefetch('tags', queryset=Tag.objects.with_posts_count())
-    comments_prefetch = Prefetch('comments', queryset=Comment.objects.all())
-
-    most_popular_posts = Post.objects.annotate(
-        likes_count=Count('likes'),
-        comments_count=Count('comments')
-    ).select_related('author').prefetch_related(
-        comments_prefetch,
-        tags_prefetch
-    ).order_by('-likes_count')[:5]
-
-    fresh_posts = Post.objects.annotate(
-        comments_count=Count('comments')
-    ).select_related('author').prefetch_related(
-        comments_prefetch,
-        tags_prefetch
-    ).order_by('-published_at')[:5]
-
-    most_popular_tags = Tag.objects.with_posts_count().order_by('-posts_count')[:5]
+    most_popular_posts = Post.objects.popular().with_related_data()[:5]
+    fresh_posts = Post.objects.with_related_data().order_by('-published_at')[:5]
+    most_popular_tags = Tag.objects.popular()[:5]
 
     context = {
         'most_popular_posts': [
-            serialize_post(post, optimized=True) for post in most_popular_posts
-        ],
+            serialize_post(post, optimized=True) for post in most_popular_posts],
         'page_posts': [
-            serialize_post(post, optimized=True) for post in fresh_posts
-        ],
+            serialize_post(post, optimized=True) for post in fresh_posts],
         'popular_tags': [
-            serialize_tag(tag) for tag in most_popular_tags
-        ],
+            serialize_tag(tag) for tag in most_popular_tags],
     }
 
     return render(request, 'index.html', context)
@@ -46,18 +27,9 @@ def get_likes_count(post):
 
 
 def post_detail(request, slug):
-    post = get_object_or_404(
-        Post.objects.annotate(
-            comments_count=Count('comments')
-        ).prefetch_related(
-            Prefetch('comments', queryset=Comment.objects.select_related('author')),
-            Prefetch('tags', queryset=Tag.objects.with_posts_count())
-        ), slug=slug
-    )
-
+    post = get_object_or_404(Post.objects.with_related_data(), slug=slug)
     serialized_post = serialize_post(post, optimized=True)
-    likes_count = get_likes_count(post)
-
+    likes_count = post.likes_count
     most_popular_tags = Tag.objects.popular()[:5]
 
     context = {
@@ -71,24 +43,19 @@ def post_detail(request, slug):
 
 def tag_filter(request, tag_title):
     tag = get_object_or_404(Tag, title=tag_title)
-
     most_popular_tags = Tag.objects.popular()[:5]
-    related_posts = tag.posts.annotate(
-        comments_count=Count('comments')
-    ).select_related('author').prefetch_related(
-        Prefetch('tags', queryset=Tag.objects.with_posts_count())
-    )[:20]
+    related_posts = tag.posts.with_related_data()[:20]
 
     context = {
         'tag': tag.title,
-        'popular_tags': [serialize_tag(tag) for tag in most_popular_tags],
-        'posts': [serialize_post(post, optimized=True) for post in related_posts],
+        'popular_tags': [
+            serialize_tag(tag) for tag in most_popular_tags],
+        'posts': [
+            serialize_post(post, optimized=True) for post in related_posts],
     }
 
     return render(request, 'posts-list.html', context)
 
 
 def contacts(request):
-    # позже здесь будет код для статистики заходов на эту страницу
-    # и для записи фидбека
     return render(request, 'contacts.html', {})
