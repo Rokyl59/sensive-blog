@@ -1,4 +1,3 @@
-# blog/views.py
 from django.shortcuts import render, get_object_or_404
 from blog.models import Comment, Post, Tag
 from django.db.models import Count
@@ -20,10 +19,6 @@ def index(request):
     }
 
     return render(request, 'index.html', context)
-
-
-def get_likes_count(post):
-    return post.likes.count()
 
 
 def post_detail(request, slug):
